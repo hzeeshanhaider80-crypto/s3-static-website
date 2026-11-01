@@ -1,0 +1,48 @@
+# Automatically deploy the website on every push to main.
+name: Deploy static website
+
+on:
+  push:
+    branches: [main]                 # run on pushes to main...
+    paths:                           # ...only when these files change
+      - "site/**"
+      - "scripts/deploy.sh"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:                 # adds a manual "Run workflow" button
+
+# Permissions of the temporary GitHub token inside this workflow.
+permissions:
+  id-token: write                    # REQUIRED for OIDC: lets the job request a login token
+  contents: read                     # read the repo code, nothing more
+
+# Never run two deploys at once; queue them instead.
+concurrency:
+  group: deploy-website
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest           # a fresh Ubuntu machine from GitHub
+    steps:
+      # 1. Download the repository code onto the machine.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Log in to AWS with OIDC: no keys stored anywhere.
+      #    AWS checks the trust policy, then gives a temporary key that expires within about an hour.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # 3. Print which AWS identity we're using (handy for debugging).
+      - name: Who am I?
+        run: aws sts get-caller-identity
+
+      # 4. Run the same deploy script you use locally.
+      - name: Deploy to S3 + clear CloudFront cache
+        run: bash scripts/deploy.sh
+        env:
+          BUCKET: ${{ vars.S3_BUCKET }}
+          DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}

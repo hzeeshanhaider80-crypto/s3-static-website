@@ -1,0 +1,6 @@
+# Generated policy files with your real values (re-created by render-policies.sh)
+build/
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
